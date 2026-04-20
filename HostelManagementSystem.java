@@ -9,12 +9,21 @@ class HostelManagementSystem {
     static final int MAX_MEMBERS = 200;
     static final int MAX_ROOMS = 50;
     static final int MAX_ALLOCS = 400;
+    static final int MAX_PAYMENTS = 1000;
     static final String DATA_DIR = "data";
     static final String MEMBERS_FILE = "members.txt";
     static final String ROOMS_FILE = "rooms.txt";
     static final String ALLOCS_FILE = "allocations.txt";
     static final String ADMIN_FILE = "admin.txt";
     static final String PAYMENTS_FILE = "payments.txt";
+
+    // ANSI colors
+    static final String RESET = "\u001B[0m";
+    static final String RED = "\u001B[31m";
+    static final String GREEN = "\u001B[32m";
+    static final String YELLOW = "\u001B[33m";
+    static final String CYAN = "\u001B[36m";
+    static final String BOLD = "\u001B[1m";
 
     // Utilities
     static class FileHandler {
@@ -41,7 +50,7 @@ class HostelManagementSystem {
                 br.close();
                 return list.toArray(new String[0]);
             } catch (IOException e) {
-                System.out.println("Error reading file " + fileName);
+                System.out.println(RED + "Error reading file " + fileName + RESET);
                 return new String[0];
             }
         }
@@ -58,7 +67,7 @@ class HostelManagementSystem {
                 bw.close();
                 return true;
             } catch (IOException e) {
-                System.out.println("Error writing file " + fileName);
+                System.out.println(RED + "Error writing file " + fileName + RESET);
                 return false;
             }
         }
@@ -72,7 +81,7 @@ class HostelManagementSystem {
                 bw.close();
                 return true;
             } catch (IOException e) {
-                System.out.println("Error appending to file " + fileName);
+                System.out.println(RED + "Error appending to file " + fileName + RESET);
                 return false;
             }
         }
@@ -187,8 +196,10 @@ class HostelManagementSystem {
         }
 
         String toPretty() {
-            return roomNumber + " | " + roomType + " | cap:" + capacity + " | occupied:" + filled + "/" + capacity
-                    + " | rent:₹" + String.format("%.2f", rent);
+            return String.format("%-4s | %-8s | %-8s | %-8s | %-10s",
+                    roomNumber, roomType, String.valueOf(capacity),
+                    filled + "/" + capacity,
+                    String.format("%.2f", rent));
         }
     }
 
@@ -247,8 +258,25 @@ class HostelManagementSystem {
                     + method;
         }
 
+        static Payment fromCsv(String line) {
+            String[] p = line.split(",", -1);
+            if (p.length < 7) {
+                return null;
+            }
+            try {
+                double amount = Double.parseDouble(p[5]);
+                return new Payment(p[0], unescape(p[1]), p[2], p[3], p[4], amount, p[6]);
+            } catch (Exception e) {
+                return null;
+            }
+        }
+
         static String escape(String s) {
             return s == null ? "" : s.replace(",", "\\,");
+        }
+
+        static String unescape(String s) {
+            return s == null ? "" : s.replace("\\,", ",");
         }
     }
 
@@ -311,25 +339,25 @@ class HostelManagementSystem {
 
         Member addMember(String name, String email, String phone, String address) {
             if (!InputValidator.isNonEmpty(name)) {
-                System.out.println("Name cannot be empty");
+                System.out.println(RED + "Name cannot be empty" + RESET);
                 return null;
             }
             if (!InputValidator.isValidEmail(email)) {
-                System.out.println("Invalid email");
+                System.out.println(RED + "Invalid email" + RESET);
                 return null;
             }
             if (!InputValidator.isValidPhone(phone)) {
-                System.out.println("Invalid phone number must starts with (6-9), 10 digits.");
+                System.out.println(RED + "Invalid phone number must starts with (6-9), 10 digits." + RESET);
                 return null;
             }
             if (memberCount >= MAX_MEMBERS) {
-                System.out.println("Max members reached");
+                System.out.println(RED + "Max members reached" + RESET);
                 return null;
             }
             String id = nextId();
             Member m = new Member(id, name, email, phone, address, DateUtils.today());
             members[memberCount++] = m;
-            System.out.println("Member added: " + id);
+            System.out.println(GREEN + "Member added: " + id + RESET);
             return m;
         }
 
@@ -348,19 +376,19 @@ class HostelManagementSystem {
         boolean updateMember(String id, String phone, String email, String address) {
             Member m = findById(id);
             if (m == null) {
-                System.out.println("Member Not Found");
+                System.out.println(RED + "Member Not Found" + RESET);
                 return false;
             }
             if (InputValidator.isNonEmpty(phone)) {
                 if (!InputValidator.isValidPhone(phone)) {
-                    System.out.println("Invalid Phone Number");
+                    System.out.println(RED + "Invalid Phone Number" + RESET);
                     return false;
                 }
                 m.phone = phone;
             }
             if (InputValidator.isNonEmpty(email)) {
                 if (!InputValidator.isValidEmail(email)) {
-                    System.out.println("Invalid Email");
+                    System.out.println(RED + "Invalid Email" + RESET);
                     return false;
                 }
                 m.email = email;
@@ -368,18 +396,18 @@ class HostelManagementSystem {
             if (InputValidator.isNonEmpty(address)) {
                 m.address = address;
             }
-            System.out.println("Member Details Updated");
+            System.out.println(GREEN + "Member Details Updated" + RESET);
             return true;
         }
 
         boolean deleteMember(String id) {
             Member m = findById(id);
             if (m == null) {
-                System.out.println("Member not found");
+                System.out.println(RED + "Member not found" + RESET);
                 return false;
             }
             m.active = false;
-            System.out.println("Member Deleted Successfully");
+            System.out.println(GREEN + "Member Deleted Successfully" + RESET);
             return true;
         }
 
@@ -401,17 +429,25 @@ class HostelManagementSystem {
         }
 
         void displayAllMembers() {
+            System.out.println();
+            // System.out.println(CYAN + "===========" + RESET);
+            System.out.println(CYAN + BOLD + "ALL MEMBERS" + RESET);
+            System.out.println(CYAN + "===========" + RESET);
             boolean any = false;
             for (int i = 0; i < memberCount; i++) {
                 Member m = members[i];
                 if (m != null && m.active) {
-                    System.out.println(
-                            m.memberId + " | " + m.name + " | " + m.email + " | " + m.phone + " | " + m.joinDate);
+                    if (!any) {
+                        System.out.println(YELLOW + BOLD + String.format("%-6s | %-20s | %-28s | %-10s | %-10s",
+                                "ID", "NAME", "EMAIL", "PHONE", "JOINED") + RESET);
+                    }
+                    System.out.println(String.format("%-6s | %-20s | %-28s | %-10s | %-10s",
+                            m.memberId, m.name, m.email, m.phone, m.joinDate));
                     any = true;
                 }
             }
             if (!any) {
-                System.out.println("No Details Found");
+                System.out.println(YELLOW + "No Details Found" + RESET);
             }
         }
 
@@ -478,6 +514,37 @@ class HostelManagementSystem {
             return null;
         }
 
+        Room addRoom(String rn, String rt, int capacity, double rent) {
+            if (!InputValidator.isNonEmpty(rn)) {
+                System.out.println(RED + "Room Number cannot be empty" + RESET);
+                return null;
+            }
+            if (findRoomByNumber(rn) != null) {
+                System.out.println(RED + "Room already exists" + RESET);
+                return null;
+            }
+            if (!"STANDARD".equalsIgnoreCase(rt) && !"LUXURY".equalsIgnoreCase(rt)) {
+                System.out.println(RED + "Invalid Room Type (STANDARD/LUXURY)" + RESET);
+                return null;
+            }
+            if (capacity <= 0) {
+                System.out.println(RED + "Capacity must be greater than 0" + RESET);
+                return null;
+            }
+            if (rent < 0) {
+                System.out.println(RED + "Rent cannot be negative" + RESET);
+                return null;
+            }
+            if (roomCount >= MAX_ROOMS) {
+                System.out.println(RED + "Max rooms reached" + RESET);
+                return null;
+            }
+            Room r = new Room(rn, rt.toUpperCase(), capacity, 0, rent);
+            rooms[roomCount++] = r;
+            System.out.println(GREEN + "Room added: " + rn + RESET);
+            return r;
+        }
+
         // Loading Details from file
         void loadFromFile() {
             reset();
@@ -510,10 +577,10 @@ class HostelManagementSystem {
                         double rent = Double.parseDouble(p[4].trim());
                         rooms[roomCount++] = new Room(rn, type, cap, filled, rent);
                     } else {
-                        System.out.println("Skipping malformed rooms line: " + l);
+                        System.out.println(RED + "Skipping malformed rooms line: " + l + RESET);
                     }
                 } catch (Exception e) {
-                    System.out.println("Error parsing room line, skipping: " + l);
+                    System.out.println(RED + "Error parsing room line, skipping: " + l + RESET);
                 }
             }
         }
@@ -531,10 +598,16 @@ class HostelManagementSystem {
         }
 
         void displayAllRooms() {
+            System.out.println();
+            System.out.println(CYAN + "=========" + RESET);
+            System.out.println(CYAN + BOLD + "ALL ROOMS" + RESET);
+            System.out.println(CYAN + "=========" + RESET);
             if (roomCount == 0) {
-                System.out.println("No Rooms Found.");
+                System.out.println(YELLOW + "No Rooms Found." + RESET);
                 return;
             }
+            System.out.println(YELLOW + BOLD + String.format("%-4s | %-8s | %-8s | %-8s | %-10s",
+                    "ROOM", "TYPE", "CAPACITY", "OCCUPIED", "RENT") + RESET);
             for (int i = 0; i < roomCount; i++) {
                 Room r = rooms[i];
                 if (r != null) {
@@ -544,16 +617,24 @@ class HostelManagementSystem {
         }
 
         void displayAvailableRooms() {
+            System.out.println();
+            System.out.println(CYAN + "===============" + RESET);
+            System.out.println(CYAN + BOLD + "AVAILABLE ROOMS" + RESET);
+            System.out.println(CYAN + "===============" + RESET);
             boolean any = false;
             for (int i = 0; i < roomCount; i++) {
                 Room r = rooms[i];
                 if (r != null && r.hasVacancy()) {
+                    if (!any) {
+                        System.out.println(YELLOW + BOLD + String.format("%-4s | %-8s | %-8s | %-8s | %-10s",
+                                "ROOM", "TYPE", "CAPACITY", "OCCUPIED", "RENT") + RESET);
+                    }
                     System.out.println(r.toPretty());
                     any = true;
                 }
             }
             if (!any) {
-                System.out.println("No available rooms.");
+                System.out.println(YELLOW + "No available rooms." + RESET);
             }
         }
     }
@@ -586,22 +667,22 @@ class HostelManagementSystem {
         Allocation allocateRoom(String memberId, String roomNumber, String allocDate) {
             Member m = ms.findById(memberId);
             if (m == null) {
-                System.out.println("Member not found");
+                System.out.println(RED + "Member not found" + RESET);
                 return null;
             }
             Room r = rs.findRoomByNumber(roomNumber);
             if (r == null) {
-                System.out.println("Room not found");
+                System.out.println(RED + "Room not found" + RESET);
                 return null;
             }
             if (!r.hasVacancy()) {
-                System.out.println("Room is full or under maintenance");
+                System.out.println(RED + "Room is full or under maintenance" + RESET);
                 return null;
             }
             for (int i = 0; i < allocCount; i++) {
                 Allocation a = allocations[i];
                 if (a != null && a.isActive() && a.memberId.equalsIgnoreCase(memberId)) {
-                    System.out.println("Member already allocated to room " + a.roomNumber);
+                    System.out.println(RED + "Member already allocated to room " + a.roomNumber + RESET);
                     return null;
                 }
             }
@@ -610,7 +691,7 @@ class HostelManagementSystem {
             if (allocCount < MAX_ALLOCS)
                 allocations[allocCount++] = a;
             r.inc();
-            System.out.println("Allocated: " + aid);
+            System.out.println(GREEN + "Allocated: " + aid + RESET);
             return a;
         }
 
@@ -623,11 +704,11 @@ class HostelManagementSystem {
                     if (r != null) {
                         r.dec();
                     }
-                    System.out.println("Vacated allocation: " + a.allocId);
+                    System.out.println(GREEN + "Vacated allocation: " + a.allocId + RESET);
                     return true;
                 }
             }
-            System.out.println("No active allocation found for this member: " + memberId);
+            System.out.println(RED + "No active allocation found for this member: " + memberId + RESET);
             return false;
         }
 
@@ -641,7 +722,7 @@ class HostelManagementSystem {
                 }
             }
             if (!foundAny) {
-                System.out.println("No active allocations found for room: " + roomNumber);
+                System.out.println(RED + "No active allocations found for room: " + roomNumber + RESET);
                 return false;
             }
 
@@ -656,7 +737,7 @@ class HostelManagementSystem {
                 }
                 r.filled = occ;
             }
-            System.out.println("Vacated allocations for room: " + roomNumber);
+            System.out.println(GREEN + "Vacated allocations for room: " + roomNumber + RESET);
             return true;
         }
 
@@ -689,15 +770,21 @@ class HostelManagementSystem {
         }
 
         void displayAllAllocations() {
+            System.out.println();
+            System.out.println(CYAN + "===============" + RESET);
+            System.out.println(CYAN + BOLD + "ALL ALLOCATIONS" + RESET);
+            System.out.println(CYAN + "===============" + RESET);
             if (allocCount == 0) {
-                System.out.println("No allocations.");
+                System.out.println(YELLOW + "No allocations." + RESET);
                 return;
             }
+            System.out.println(YELLOW + BOLD + String.format("%-8s | %-6s -> %-4s | %-8s | %-10s",
+                    "ALLOC ID", "MEMBER", "ROOM", "STATUS", "ALLOC DATE") + RESET);
             for (int i = 0; i < allocCount; i++) {
                 Allocation a = allocations[i];
                 if (a != null) {
-                    System.out.println(a.allocId + " | " + a.memberId + " -> " + a.roomNumber + " | " + a.status + " | "
-                            + a.allocDate);
+                    System.out.println(String.format("%-8s | %-6s -> %-4s | %-8s | %-10s",
+                            a.allocId, a.memberId, a.roomNumber, a.status, a.allocDate));
                 }
             }
         }
@@ -775,24 +862,36 @@ class HostelManagementSystem {
         }
 
         void membersWithRooms() {
+            System.out.println();
+            System.out.println(CYAN + "==================" + RESET);
+            System.out.println(CYAN + BOLD + "MEMBERS WITH ROOMS" + RESET);
+            System.out.println(CYAN + "==================" + RESET);
             boolean any = false;
             for (int i = 0; i < as.allocCount; i++) {
                 Allocation a = as.allocations[i];
                 if (a != null && a.isActive()) {
                     Member m = ms.findById(a.memberId);
                     if (m != null) {
-                        System.out.println(m.memberId + " | " + m.name + " | Room: " + a.roomNumber + " | AllocDate: "
-                                + a.allocDate);
+                        if (!any) {
+                            System.out.println(YELLOW + BOLD + String.format("%-6s | %-20s | %-4s | %-10s",
+                                    "ID", "NAME", "ROOM", "ALLOC DATE") + RESET);
+                        }
+                        System.out.println(String.format("%-6s | %-20s | %-4s | %-10s",
+                                m.memberId, m.name, a.roomNumber, a.allocDate));
                         any = true;
                     }
                 }
             }
             if (!any) {
-                System.out.println("No active allocations.");
+                System.out.println(YELLOW + "No active allocations." + RESET);
             }
         }
 
         void membersWithoutRooms() {
+            System.out.println();
+            System.out.println(CYAN + "=====================" + RESET);
+            System.out.println(CYAN + BOLD + "MEMBERS WITHOUT ROOMS" + RESET);
+            System.out.println(CYAN + "=====================" + RESET);
             boolean any = false;
             for (int i = 0; i < ms.memberCount; i++) {
                 Member m = ms.members[i];
@@ -801,42 +900,64 @@ class HostelManagementSystem {
                 }
                 boolean has = as.memberHasActiveAllocation(m.memberId);
                 if (!has) {
-                    System.out.println(m.memberId + " | " + m.name + " | " + m.phone);
+                    if (!any) {
+                        System.out.println(
+                                YELLOW + BOLD + String.format("%-6s | %-20s | %-10s", "ID", "NAME", "PHONE") + RESET);
+                    }
+                    System.out.println(String.format("%-6s | %-20s | %-10s", m.memberId, m.name, m.phone));
                     any = true;
                 }
             }
             if (!any) {
-                System.out.println("All members have rooms or no members exist.");
+                System.out.println(YELLOW + "All members have rooms or no members exist." + RESET);
             }
         }
 
         void occupiedRooms() {
+            System.out.println();
+            System.out.println(CYAN + "==============" + RESET);
+            System.out.println(CYAN + BOLD + "OCCUPIED ROOMS" + RESET);
+            System.out.println(CYAN + "==============" + RESET);
             boolean any = false;
             for (int i = 0; i < rs.roomCount; i++) {
                 Room r = rs.rooms[i];
                 if (r != null && r.filled > 0) {
-                    System.out.println(r.roomNumber + " | Type: " + r.roomType + " | Occupied: " + r.filled + "/"
-                            + r.capacity + " | Rent:₹" + String.format("%.2f", r.rent));
+                    if (!any) {
+                        System.out.println(YELLOW + BOLD + String.format("%-4s | %-8s | %-8s | %-10s",
+                                "ROOM", "TYPE", "OCCUPIED", "RENT") + RESET);
+                    }
+                    System.out.println(String.format("%-4s | %-8s | %-8s | %-10s",
+                            r.roomNumber, r.roomType, r.filled + "/" + r.capacity,
+                            String.format("%.2f", r.rent)));
                     any = true;
                 }
             }
             if (!any) {
-                System.out.println("No occupied rooms.");
+                System.out.println(YELLOW + "No occupied rooms." + RESET);
             }
         }
 
         void availableRooms() {
+            System.out.println();
+            System.out.println(CYAN + "===============" + RESET);
+            System.out.println(CYAN + BOLD + "AVAILABLE ROOMS" + RESET);
+            System.out.println(CYAN + "===============" + RESET);
             boolean any = false;
             for (int i = 0; i < rs.roomCount; i++) {
                 Room r = rs.rooms[i];
                 if (r != null && r.hasVacancy()) {
-                    System.out.println(r.roomNumber + " | Type: " + r.roomType + " | Vacant: " + (r.capacity - r.filled)
-                            + "/" + r.capacity + " | Rent:₹" + String.format("%.2f", r.rent));
+                    if (!any) {
+                        System.out.println(YELLOW + BOLD + String.format("%-4s | %-8s | %-6s | %-10s",
+                                "ROOM", "TYPE", "VACANT", "RENT") + RESET);
+                    }
+                    System.out.println(String.format("%-4s | %-8s | %-6s | %-10s",
+                            r.roomNumber, r.roomType, (r.capacity - r.filled) + "/" + r.capacity,
+                            String.format("%.2f", r.rent)));
                     any = true;
                 }
             }
             if (!any) {
-                System.out.println("No available rooms.");
+                System.out.println(YELLOW + "No available rooms." + RESET);
             }
         }
 
@@ -858,8 +979,127 @@ class HostelManagementSystem {
                         luxFree++;
                 }
             }
-            System.out.println("Standard Rooms: " + std + " (Free: " + stdFree + ")");
-            System.out.println("Luxury Rooms  : " + lux + " (Free: " + luxFree + ")");
+            System.out.println();
+            System.out.println(CYAN + "=================" + RESET);
+            System.out.println(CYAN + BOLD + "ROOM TYPE SUMMARY" + RESET);
+            System.out.println(CYAN + "=================" + RESET);
+            System.out.println(String.format("%-15s : %-3d (Free: %d)", "Standard Rooms", std, stdFree));
+            System.out.println(String.format("%-15s : %-3d (Free: %d)", "Luxury Rooms", lux, luxFree));
+        }
+    }
+
+    static class PaymentService {
+        Payment[] payments = new Payment[MAX_PAYMENTS];
+        int paymentCount = 0;
+        FileHandler fh;
+
+        PaymentService(FileHandler fh) {
+            this.fh = fh;
+        }
+
+        void reset() {
+            payments = new Payment[MAX_PAYMENTS];
+            paymentCount = 0;
+        }
+
+        void loadFromFile() {
+            reset();
+            String[] lines = fh.readAllLines(PAYMENTS_FILE);
+            for (String l : lines) {
+                if (l == null || l.trim().isEmpty()) {
+                    continue;
+                }
+                Payment p = Payment.fromCsv(l);
+                if (p != null && paymentCount < MAX_PAYMENTS) {
+                    payments[paymentCount++] = p;
+                }
+            }
+        }
+
+        void displayAllPayments() {
+            System.out.println();
+            System.out.println(CYAN + "============" + RESET);
+            System.out.println(CYAN + BOLD + "ALL PAYMENTS" + RESET);
+            System.out.println(CYAN + "============" + RESET);
+            if (paymentCount == 0) {
+                System.out.println(YELLOW + "No payment records found." + RESET);
+                return;
+            }
+            System.out.println(YELLOW + BOLD + String.format("%-7s | %-20s | %-10s | %-4s | %-10s | %-10s | %-6s",
+                    "TRX ID", "NAME", "PHONE", "ROOM", "DATE", "AMOUNT", "METHOD") + RESET);
+            for (int i = 0; i < paymentCount; i++) {
+                Payment p = payments[i];
+                if (p != null) {
+                    System.out.println(String.format("%-7s | %-20s | %-10s | %-4s | %-10s | %-10s | %-6s",
+                            p.trxId, p.name, p.phone, p.roomNumber, p.date,
+                            String.format("%.2f", p.amount), p.method));
+                }
+            }
+        }
+
+        Payment[] getPaymentsByPhone(String phone) {
+            Payment[] tmp = new Payment[paymentCount];
+            int c = 0;
+            for (int i = 0; i < paymentCount; i++) {
+                Payment p = payments[i];
+                if (p != null && p.phone.equalsIgnoreCase(phone)) {
+                    tmp[c++] = p;
+                }
+            }
+            Payment[] out = new Payment[c];
+            System.arraycopy(tmp, 0, out, 0, c);
+            return out;
+        }
+
+        Payment[] getPaymentsByRoom(String roomNumber) {
+            Payment[] tmp = new Payment[paymentCount];
+            int c = 0;
+            for (int i = 0; i < paymentCount; i++) {
+                Payment p = payments[i];
+                if (p != null && p.roomNumber.equalsIgnoreCase(roomNumber)) {
+                    tmp[c++] = p;
+                }
+            }
+            Payment[] out = new Payment[c];
+            System.arraycopy(tmp, 0, out, 0, c);
+            return out;
+        }
+
+        double totalRevenue() {
+            double sum = 0;
+            for (int i = 0; i < paymentCount; i++) {
+                Payment p = payments[i];
+                if (p != null) {
+                    sum += p.amount;
+                }
+            }
+            return sum;
+        }
+
+        void revenueSummary() {
+            double cash = 0, upi = 0;
+            int cashCount = 0, upiCount = 0;
+            for (int i = 0; i < paymentCount; i++) {
+                Payment p = payments[i];
+                if (p == null) {
+                    continue;
+                }
+                if ("CASH".equalsIgnoreCase(p.method)) {
+                    cash += p.amount;
+                    cashCount++;
+                } else if ("UPI".equalsIgnoreCase(p.method)) {
+                    upi += p.amount;
+                    upiCount++;
+                }
+            }
+            System.out.println();
+            System.out.println(CYAN + "===============" + RESET);
+            System.out.println(CYAN + BOLD + "REVENUE SUMMARY" + RESET);
+            System.out.println(CYAN + "===============" + RESET);
+            System.out.println(String.format("%-18s : %d", "Total Transactions", paymentCount));
+            System.out.println(String.format("%-18s : %-3d | %s", "CASH", cashCount, String.format("%.2f", cash)));
+            System.out.println(String.format("%-18s : %-3d | %s", "UPI", upiCount, String.format("%.2f", upi)));
+            System.out.println(String.format("%-18s : %s", "Total Revenue", String.format("%.2f", cash + upi)));
         }
     }
 
@@ -871,6 +1111,7 @@ class HostelManagementSystem {
     static RoomService roomService;
     static AllocationService allocationService;
     static ReportService reportService;
+    static PaymentService paymentService;
     static int paymentCounter = 0;
 
     public static void main(String[] args) {
@@ -880,19 +1121,22 @@ class HostelManagementSystem {
         roomService = new RoomService(fh);
         allocationService = new AllocationService(fh, roomService, memberService);
         reportService = new ReportService(memberService, roomService, allocationService);
+        paymentService = new PaymentService(fh);
 
         // load data
         adminAuth.load(fh);
         roomService.loadFromFile();
         memberService.loadFromFile();
         allocationService.loadFromFile();
+        paymentService.loadFromFile();
         loadPaymentCounter();
 
-        System.out.println("MAIN MENU");
-        System.out.println("---------");
+        System.out.println(CYAN + "=========" + RESET);
+        System.out.println(CYAN + BOLD + "MAIN MENU" + RESET);
+        System.out.println(CYAN + "=========" + RESET);
 
         if (!loginFlow()) {
-            System.out.println("Authentication failed. Exiting.....");
+            System.out.println(RED + "Authentication failed. Exiting....." + RESET);
             return;
         }
 
@@ -917,10 +1161,10 @@ class HostelManagementSystem {
                     break;
                 case "6":
                     saveAll();
-                    System.out.println("Exiting...");
+                    System.out.println(GREEN + "Exiting..." + RESET);
                     return;
                 default:
-                    System.out.println("Invalid option");
+                    System.out.println(RED + "Invalid option" + RESET);
             }
         }
     }
@@ -933,7 +1177,7 @@ class HostelManagementSystem {
             System.out.print("Enter Password: ");
             String pass = sc.nextLine();
             if (adminAuth.authenticate(user, pass)) {
-                System.out.println("Login successful!");
+                System.out.println(GREEN + "Login successful!" + RESET);
                 return true;
             }
 
@@ -942,7 +1186,7 @@ class HostelManagementSystem {
             boolean passOk = adminAuth.password.equals(pass);
 
             if (!userOk) {
-                System.out.println("You have entered wrong usename");
+                System.out.println(RED + "You have entered wrong usename" + RESET);
                 System.out.println("1) Try again  2) Forgot username  3) Exit");
                 System.out.print("Enter Your Choice : ");
                 String ch = sc.nextLine().trim();
@@ -953,15 +1197,15 @@ class HostelManagementSystem {
                     System.out.print("Enter your registered phone number : ");
                     String ph = sc.nextLine().trim();
                     if (adminAuth.verifyPhone(ph)) {
-                        System.out.println("Your username is " + adminAuth.username);
+                        System.out.println(GREEN + "Your username is " + adminAuth.username + RESET);
                     } else {
-                        System.out.println("Phone does not match");
+                        System.out.println(RED + "Phone does not match" + RESET);
                     }
                     continue;
                 }
                 return false;
             } else if (!passOk) {
-                System.out.println("You have entered wrong password");
+                System.out.println(RED + "You have entered wrong password" + RESET);
                 System.out.println("1) Try again  2) Reset password  3) Exit");
                 System.out.print("Enter Your Choice : ");
                 String ch = sc.nextLine().trim();
@@ -972,7 +1216,7 @@ class HostelManagementSystem {
                     System.out.print("Enter your registered phone number : ");
                     String ph = sc.nextLine().trim();
                     if (!adminAuth.verifyPhone(ph)) {
-                        System.out.println("Phone number does not match");
+                        System.out.println(RED + "Phone number does not match" + RESET);
                         continue;
                     }
                     int otp = adminAuth.generateOTP();
@@ -986,11 +1230,11 @@ class HostelManagementSystem {
                             ok = true;
                             break;
                         } else {
-                            System.out.println("Entered OTP is Invalid, attempts left: " + tries);
+                            System.out.println(RED + "Entered OTP is Invalid, attempts left: " + tries + RESET);
                         }
                     }
                     if (!ok) {
-                        System.out.println("OTP verification failed");
+                        System.out.println(RED + "OTP verification failed" + RESET);
                         continue;
                     }
                     System.out.print("Enter new password : ");
@@ -998,12 +1242,13 @@ class HostelManagementSystem {
                     System.out.print("Re-enter new password: ");
                     String np2 = sc.nextLine();
                     if (!np.equals(np2)) {
-                        System.out.println("Passwords do not match");
+                        System.out.println(RED + "Passwords do not match" + RESET);
                         continue;
                     }
                     adminAuth.password = np;
                     adminAuth.save(fh);
-                    System.out.println("Password updated successfully- please login with new credentials");
+                    System.out.println(
+                            GREEN + "Password updated successfully- please login with new credentials" + RESET);
                     continue;
                 }
                 return false;
@@ -1016,8 +1261,9 @@ class HostelManagementSystem {
     /* ========== MENUS ========== */
     static void showMainMenu() {
         System.out.println();
-        System.out.println("ADMIN DASHBOARD");
-        System.out.println("---------------");
+        System.out.println(CYAN + "===============" + RESET);
+        System.out.println(CYAN + BOLD + "ADMIN DASHBOARD" + RESET);
+        System.out.println(CYAN + "===============" + RESET);
         System.out.println("1) Member Management");
         System.out.println("2) Room Management");
         System.out.println("3) Allocation Management");
@@ -1030,8 +1276,9 @@ class HostelManagementSystem {
     static void memberManagementMenu() {
         while (true) {
             System.out.println();
-            System.out.println("MEMBER MANAGEMENT");
-            System.out.println("-----------------");
+            System.out.println(CYAN + "=================" + RESET);
+            System.out.println(CYAN + BOLD + "MEMBER MANAGEMENT" + RESET);
+            System.out.println(CYAN + "=================" + RESET);
             System.out.println("1) Add Member");
             System.out.println("2) Update Member");
             System.out.println("3) Delete Member");
@@ -1043,6 +1290,9 @@ class HostelManagementSystem {
             String ch = sc.nextLine().trim();
             switch (ch) {
                 case "1": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "ADD MEMBER" + RESET);
+                    System.out.println(CYAN + "==========" + RESET);
                     System.out.print("Enter Full Name         : ");
                     String name = sc.nextLine();
                     System.out.print("Enter Your Email ID     : ");
@@ -1055,49 +1305,78 @@ class HostelManagementSystem {
                     break;
                 }
                 case "2": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "UPDATE MEMBER" + RESET);
+                    System.out.println(CYAN + "=============" + RESET);
                     System.out.print("Enter Member ID: ");
                     String id = sc.nextLine();
                     Member found = memberService.findById(id);
                     if (found == null) {
-                        System.out.println("Member ID not found");
+                        System.out.println(RED + "Member ID not found" + RESET);
                         break;
                     }
-                    System.out.println("Member found: " + found.name + " | " + found.email + " | " + found.phone);
-                    System.out.print("New Phone Number (blank to skip) : ");
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "MEMBER FOUND" + RESET);
+                    System.out.println(CYAN + "============" + RESET);
+                    System.out.println(
+                            YELLOW + BOLD + String.format("%-20s | %-28s | %-10s", "NAME", "EMAIL", "PHONE") + RESET);
+                    System.out.println(String.format("%-20s | %-28s | %-10s", found.name, found.email, found.phone));
+                    System.out.print("New Phone Number(blank to skip) : ");
                     String ph = sc.nextLine();
-                    System.out.print("New Email ID (blank to skip) : ");
+                    System.out.print("New Email ID(blank to skip)     : ");
                     String em = sc.nextLine();
-                    System.out.print("New Address (blank to skip) : ");
+                    System.out.print("New Address(blank to skip)      : ");
                     String ad = sc.nextLine();
                     memberService.updateMember(id, ph, em, ad);
                     break;
                 }
                 case "3": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "DELETE MEMBER" + RESET);
+                    System.out.println(CYAN + "=============" + RESET);
                     System.out.print("Enter Member ID to delete: ");
                     String id = sc.nextLine();
                     memberService.deleteMember(id);
                     break;
                 }
                 case "4": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "SEARCH MEMBER BY ID" + RESET);
+                    System.out.println(CYAN + "===================" + RESET);
                     System.out.print("Enter Member ID: ");
                     String id = sc.nextLine();
                     Member m = memberService.findById(id);
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "MEMBER DETAILS" + RESET);
+                    System.out.println(CYAN + "==============" + RESET);
                     if (m != null) {
-                        System.out.println(m.memberId + " | " + m.name + " | " + m.email + " | " + m.phone);
+                        System.out.println(YELLOW + BOLD + String.format("%-6s | %-20s | %-28s | %-10s",
+                                "ID", "NAME", "EMAIL", "PHONE") + RESET);
+                        System.out.println(String.format("%-6s | %-20s | %-28s | %-10s",
+                                m.memberId, m.name, m.email, m.phone));
                     } else {
-                        System.out.println("Member not found");
+                        System.out.println(YELLOW + "Member not found" + RESET);
                     }
                     break;
                 }
                 case "5": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "SEARCH MEMBER BY NAME" + RESET);
+                    System.out.println(CYAN + "=====================" + RESET);
                     System.out.print("Enter name search: ");
                     String nm = sc.nextLine();
                     Member[] res = memberService.searchMembersByName(nm);
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "SEARCH RESULTS" + RESET);
+                    System.out.println(CYAN + "==============" + RESET);
                     if (res.length == 0) {
-                        System.out.println("No matching members");
+                        System.out.println(YELLOW + "No matching members" + RESET);
                     } else {
+                        System.out.println(
+                                YELLOW + BOLD + String.format("%-6s | %-20s | %-10s", "ID", "NAME", "PHONE") + RESET);
                         for (Member mm : res) {
-                            System.out.println(mm.memberId + " | " + mm.name + " | " + mm.phone);
+                            System.out.println(String.format("%-6s | %-20s | %-10s",
+                                    mm.memberId, mm.name, mm.phone));
                         }
                     }
                     break;
@@ -1108,7 +1387,7 @@ class HostelManagementSystem {
                 case "7":
                     return;
                 default:
-                    System.out.println("Invalid");
+                    System.out.println(RED + "Invalid" + RESET);
             }
         }
     }
@@ -1116,12 +1395,14 @@ class HostelManagementSystem {
     static void roomManagementMenu() {
         while (true) {
             System.out.println();
-            System.out.println("ROOM MANAGEMENT");
-            System.out.println("---------------");
+            System.out.println(CYAN + "===============" + RESET);
+            System.out.println(CYAN + BOLD + "ROOM MANAGEMENT" + RESET);
+            System.out.println(CYAN + "===============" + RESET);
             System.out.println("1) Show All Rooms");
             System.out.println("2) Show Available Rooms");
             System.out.println("3) Update Room (rent/status)");
-            System.out.println("4) Back");
+            System.out.println("4) Add Room");
+            System.out.println("5) Back");
             System.out.print("Enter Your Choice : ");
             String ch = sc.nextLine().trim();
             switch (ch) {
@@ -1132,11 +1413,14 @@ class HostelManagementSystem {
                     roomService.displayAvailableRooms();
                     break;
                 case "3": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "UPDATE ROOM" + RESET);
+                    System.out.println(CYAN + "===========" + RESET);
                     System.out.print("Enter Room Number: ");
                     String rn = sc.nextLine();
                     Room r = roomService.findRoomByNumber(rn);
                     if (r == null) {
-                        System.out.println("Room not found");
+                        System.out.println(RED + "Room not found" + RESET);
                         break;
                     }
                     System.out.print("New Rent (blank for skip): ");
@@ -1147,13 +1431,13 @@ class HostelManagementSystem {
                         try {
                             r.rent = Double.parseDouble(rentS);
                         } catch (Exception e) {
-                            System.out.println("Invalid rent");
+                            System.out.println(RED + "Invalid rent" + RESET);
                         }
                     }
                     if (InputValidator.isNonEmpty(st)) {
                         String up = st.toUpperCase();
                         if (!up.equals("FREE") && !up.equals("OCCUPIED") && !up.equals("MAINTENANCE")) {
-                            System.out.println("Invalid status");
+                            System.out.println(RED + "Invalid status" + RESET);
                         } else {
                             if (up.equals("FREE")) {
                                 r.filled = 0;
@@ -1161,13 +1445,42 @@ class HostelManagementSystem {
                             r.roomType = r.roomType;
                         }
                     }
-                    System.out.println("Room updated");
+                    System.out.println(GREEN + "Room updated" + RESET);
                     break;
                 }
-                case "4":
+                case "4": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "ADD ROOM" + RESET);
+                    System.out.println(CYAN + "========" + RESET);
+                    System.out.print("Enter Room Number      : ");
+                    String rn = sc.nextLine().trim();
+                    System.out.print("Enter Room Type (STANDARD/LUXURY): ");
+                    String rt = sc.nextLine().trim();
+                    System.out.print("Enter Capacity         : ");
+                    String capS = sc.nextLine().trim();
+                    System.out.print("Enter Rent             : ");
+                    String rentS = sc.nextLine().trim();
+                    int cap = 0;
+                    double rent = 0;
+                    try {
+                        cap = Integer.parseInt(capS);
+                    } catch (Exception e) {
+                        System.out.println(RED + "Invalid capacity" + RESET);
+                        break;
+                    }
+                    try {
+                        rent = Double.parseDouble(rentS);
+                    } catch (Exception e) {
+                        System.out.println(RED + "Invalid rent" + RESET);
+                        break;
+                    }
+                    roomService.addRoom(rn, rt, cap, rent);
+                    break;
+                }
+                case "5":
                     return;
                 default:
-                    System.out.println("Invalid");
+                    System.out.println(RED + "Invalid" + RESET);
             }
         }
     }
@@ -1175,8 +1488,8 @@ class HostelManagementSystem {
     static void allocationManagementMenu() {
         while (true) {
             System.out.println();
-            System.out.println("ALLOCATION MANAGEMENT");
-            System.out.println("---------------------");
+            System.out.println(CYAN + BOLD + "ALLOCATION MANAGEMENT" + RESET);
+            System.out.println(CYAN + "=====================" + RESET);
             System.out.println("1) Allocate Room");
             System.out.println("2) Vacate Room by Member");
             System.out.println("3) Vacate Room by Room");
@@ -1192,18 +1505,27 @@ class HostelManagementSystem {
                     allocateWithPaymentFlow();
                     break;
                 case "2": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "VACATE ROOM BY MEMBER" + RESET);
+                    System.out.println(CYAN + "=====================" + RESET);
                     System.out.print("Enter Member ID: ");
                     String id = sc.nextLine();
                     allocationService.vacateRoomByMember(id, DateUtils.today());
                     break;
                 }
                 case "3": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "VACATE ROOM BY ROOM" + RESET);
+                    System.out.println(CYAN + "===================" + RESET);
                     System.out.print("Enter Room Number: ");
                     String rn = sc.nextLine();
                     allocationService.vacateRoomByRoom(rn, DateUtils.today());
                     break;
                 }
                 case "4": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "REALLOCATE ROOM" + RESET);
+                    System.out.println(CYAN + "===============" + RESET);
                     System.out.print("Enter Member ID to reallocate: ");
                     String mid = sc.nextLine();
                     System.out.print("Enter New Room Number: ");
@@ -1214,35 +1536,47 @@ class HostelManagementSystem {
                         if (paid) {
                             allocationService.allocateRoom(mid, newRn, DateUtils.today());
                         } else {
-                            System.out.println("Reallocation cancelled (payment failed)");
+                            System.out.println(RED + "Reallocation cancelled (payment failed)" + RESET);
                         }
                     } else {
-                        System.out.println("Reallocation aborted (no active allocation)");
+                        System.out.println(RED + "Reallocation aborted (no active allocation)" + RESET);
                     }
                     break;
                 }
                 case "5": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "SEARCH ALLOCATION BY MEMBER" + RESET);
+                    System.out.println(CYAN + "===========================" + RESET);
                     System.out.print("Enter Member ID: ");
                     String mid = sc.nextLine();
                     Allocation[] arr = allocationService.getAllocationsByMember(mid);
                     if (arr.length == 0) {
-                        System.out.println("No allocation available associated with the ID : " + mid);
+                        System.out.println(YELLOW + "No allocation available associated with the ID : " + mid + RESET);
                     } else {
+                        System.out.println(YELLOW + BOLD
+                                + String.format("%-8s | %-4s | %-8s", "ALLOC ID", "ROOM", "STATUS") + RESET);
                         for (Allocation a : arr) {
-                            System.out.println(a.allocId + " | " + a.roomNumber + " | " + a.status);
+                            System.out.println(String.format("%-8s | %-4s | %-8s",
+                                    a.allocId, a.roomNumber, a.status));
                         }
                     }
                     break;
                 }
                 case "6": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "SEARCH ALLOCATION BY ROOM" + RESET);
+                    System.out.println(CYAN + "=========================" + RESET);
                     System.out.print("Enter Room Number: ");
                     String rn = sc.nextLine();
                     Allocation[] arr = allocationService.getAllocationsByRoom(rn);
                     if (arr.length == 0) {
-                        System.out.println("No allocations");
+                        System.out.println(YELLOW + "No allocations" + RESET);
                     } else {
+                        System.out.println(YELLOW + BOLD
+                                + String.format("%-8s | %-6s | %-8s", "ALLOC ID", "MEMBER", "STATUS") + RESET);
                         for (Allocation a : arr) {
-                            System.out.println(a.allocId + " | " + a.memberId + " | " + a.status);
+                            System.out.println(String.format("%-8s | %-6s | %-8s",
+                                    a.allocId, a.memberId, a.status));
                         }
                     }
                     break;
@@ -1253,39 +1587,42 @@ class HostelManagementSystem {
                 case "8":
                     return;
                 default:
-                    System.out.println("Invalid");
+                    System.out.println(RED + "Invalid" + RESET);
             }
         }
     }
 
     // PAYMENT & ALLOCATION HELPERS
     static void allocateWithPaymentFlow() {
+        System.out.println();
+        System.out.println(CYAN + BOLD + "ALLOCATE ROOM" + RESET);
+        System.out.println(CYAN + "=============" + RESET);
         System.out.print("Enter Member ID: ");
         String mid = sc.nextLine();
         System.out.print("Enter Room Number: ");
         String rn = sc.nextLine();
         Member m = memberService.findById(mid);
         if (m == null) {
-            System.out.println("Member Details Not Found");
+            System.out.println(RED + "Member Details Not Found" + RESET);
             return;
         }
         Room r = roomService.findRoomByNumber(rn);
         if (r == null) {
-            System.out.println("Room Details Not Found");
+            System.out.println(RED + "Room Details Not Found" + RESET);
             return;
         }
         if (!r.hasVacancy()) {
-            System.out.println("Room Fully Occupied, Please allot another room!");
+            System.out.println(RED + "Room Fully Occupied, Please allot another room!" + RESET);
             return;
         }
         if (allocationService.memberHasActiveAllocation(mid)) {
-            System.out.println("Member already has an active allocation");
+            System.out.println(RED + "Member already has an active allocation" + RESET);
             return;
         }
         System.out.println("Room Rent is : " + String.format("%.2f", r.rent));
         boolean paid = paymentFlowForMember(mid, rn);
         if (!paid) {
-            System.out.println("Payment failed or cancelled");
+            System.out.println(RED + "Payment failed or cancelled" + RESET);
             return;
         }
         allocationService.allocateRoom(mid, rn, DateUtils.today());
@@ -1306,18 +1643,31 @@ class HostelManagementSystem {
         } else if ("2".equals(ch)) {
             method = "UPI";
         } else {
-            System.out.println("Invalid Payment Method");
+            System.out.println(RED + "Invalid Payment Method" + RESET);
             return false;
         }
         String trx = nextPaymentId();
         Payment p = new Payment(trx, m.name, m.phone, roomNumber, DateUtils.today(), r.rent, method);
         boolean ok = fh.appendLine(PAYMENTS_FILE, p.toCsv());
         if (!ok) {
-            System.out.println("Failed to save payment record");
+            System.out.println(RED + "Failed to save payment record" + RESET);
             return false;
         }
-        System.out.println("Payment successful");
-        System.out.println("Tranasction ID : " + trx);
+        if (paymentService.paymentCount < MAX_PAYMENTS) {
+            paymentService.payments[paymentService.paymentCount++] = p;
+        }
+        System.out.println();
+        System.out.println(CYAN + "===============" + RESET);
+        System.out.println(CYAN + BOLD + "PAYMENT RECEIPT" + RESET);
+        System.out.println(CYAN + "===============" + RESET);
+        System.out.println("Transaction ID : " + trx);
+        System.out.println("Name           : " + m.name);
+        System.out.println("Phone          : " + m.phone);
+        System.out.println("Room           : " + roomNumber);
+        System.out.println("Date           : " + DateUtils.today());
+        System.out.println("Amount         : " + String.format("%.2f", r.rent));
+        System.out.println("Method         : " + method);
+        System.out.println(GREEN + "Status         : SUCCESS" + RESET);
         return true;
     }
 
@@ -1353,14 +1703,19 @@ class HostelManagementSystem {
     static void reportsMenu() {
         while (true) {
             System.out.println();
-            System.out.println("REPORTS");
-            System.out.println("-------");
+            System.out.println(CYAN + "=======" + RESET);
+            System.out.println(CYAN + BOLD + "REPORTS" + RESET);
+            System.out.println(CYAN + "=======" + RESET);
             System.out.println("1) Members With Rooms");
             System.out.println("2) Members Without Rooms");
             System.out.println("3) Occupied Rooms");
             System.out.println("4) Available Rooms");
             System.out.println("5) Room Type Summary");
-            System.out.println("6) Back");
+            System.out.println("6) All Payments");
+            System.out.println("7) Payments by Phone");
+            System.out.println("8) Payments by Room");
+            System.out.println("9) Revenue Summary");
+            System.out.println("10) Back");
             System.out.print("Enter Your Choice : ");
             String ch = sc.nextLine().trim();
             switch (ch) {
@@ -1380,9 +1735,55 @@ class HostelManagementSystem {
                     reportService.roomTypeSummary();
                     break;
                 case "6":
+                    paymentService.displayAllPayments();
+                    break;
+                case "7": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "PAYMENTS BY PHONE" + RESET);
+                    System.out.println(CYAN + "=================" + RESET);
+                    System.out.print("Enter Phone Number: ");
+                    String ph = sc.nextLine().trim();
+                    Payment[] arr = paymentService.getPaymentsByPhone(ph);
+                    if (arr.length == 0) {
+                        System.out.println(YELLOW + "No payments found for phone: " + ph + RESET);
+                    } else {
+                        System.out.println(YELLOW + BOLD + String.format("%-7s | %-20s | %-4s | %-10s | %-10s | %-6s",
+                                "TRX ID", "NAME", "ROOM", "DATE", "AMOUNT", "METHOD") + RESET);
+                        for (Payment p : arr) {
+                            System.out.println(String.format("%-7s | %-20s | %-4s | %-10s | %-10s | %-6s",
+                                    p.trxId, p.name, p.roomNumber, p.date,
+                                    String.format("%.2f", p.amount), p.method));
+                        }
+                    }
+                    break;
+                }
+                case "8": {
+                    System.out.println();
+                    System.out.println(CYAN + BOLD + "PAYMENTS BY ROOM" + RESET);
+                    System.out.println(CYAN + "================" + RESET);
+                    System.out.print("Enter Room Number: ");
+                    String rn = sc.nextLine().trim();
+                    Payment[] arr = paymentService.getPaymentsByRoom(rn);
+                    if (arr.length == 0) {
+                        System.out.println(YELLOW + "No payments found for room: " + rn + RESET);
+                    } else {
+                        System.out.println(YELLOW + BOLD + String.format("%-7s | %-20s | %-10s | %-10s | %-10s | %-6s",
+                                "TRX ID", "NAME", "PHONE", "DATE", "AMOUNT", "METHOD") + RESET);
+                        for (Payment p : arr) {
+                            System.out.println(String.format("%-7s | %-20s | %-10s | %-10s | %-10s | %-6s",
+                                    p.trxId, p.name, p.phone, p.date,
+                                    String.format("%.2f", p.amount), p.method));
+                        }
+                    }
+                    break;
+                }
+                case "9":
+                    paymentService.revenueSummary();
+                    break;
+                case "10":
                     return;
                 default:
-                    System.out.println("Invalid");
+                    System.out.println(RED + "Invalid" + RESET);
             }
         }
     }
@@ -1393,6 +1794,9 @@ class HostelManagementSystem {
         roomService.saveToFile();
         allocationService.saveToFile();
         adminAuth.save(fh);
-        System.out.println("All Data Saved Successfully.");
+        System.out.println();
+        System.out.println(CYAN + BOLD + "SAVE STATUS" + RESET);
+        System.out.println(CYAN + "===========" + RESET);
+        System.out.println(GREEN + "All Data Saved Successfully." + RESET);
     }
 }
